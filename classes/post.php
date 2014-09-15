@@ -230,10 +230,10 @@ class Post extends QueryRecord implements IsContent, FormStorage
 	{
 		$types = Post::list_active_post_types();
 		if ( is_numeric( $name ) && ( false !== in_array( $name, $types ) ) ) {
-			return $name;
+			return (int) $name;
 		}
 		if ( isset( $types[ MultiByte::strtolower( $name ) ] ) ) {
-			return $types[ MultiByte::strtolower( $name ) ];
+			return (int) $types[ MultiByte::strtolower( $name ) ];
 		}
 		return false;
 	}
@@ -662,6 +662,10 @@ class Post extends QueryRecord implements IsContent, FormStorage
 	 */
 	public function update( $minor = true )
 	{
+		if($this->id == 0) {
+			return $this->insert() !== false;
+		}
+		
 		$this->modified = DateTime::create();
 		if ( ! $minor && $this->status != Post::status( 'draft' ) ) {
 			$this->updated = $this->modified;
@@ -808,7 +812,7 @@ class Post extends QueryRecord implements IsContent, FormStorage
 		}
 
 		$this->status = Post::status( 'published' );
-		$result = $this->update( false );
+		$result = $this->update( true );
 		EventLog::log( $msg, 'info', 'content', 'habari' );
 
 		// and call any final plugins
@@ -816,6 +820,32 @@ class Post extends QueryRecord implements IsContent, FormStorage
 		return $result;
 	}
 
+	/**
+	* Overrides QueryRecord __isset to implement custom object properties
+	* @param string $name Name of property to return
+	* @return boolean true if var is set and not NULL, false otherwise
+	*/
+
+	public function __isset( $name )
+	{
+		$fieldnames = array_merge( array_keys( $this->fields ), array( 'permalink', 'tags', 'comments', 'comment_count', 'approved_comment_count', 'comment_feed_link', 'author', 'editlink', 'info' ) );
+		
+		// Parent method
+		if( parent::__isset( $name ) ) {
+			return true;
+		}
+
+		// Internal fields
+		if( in_array( $name, $fieldnames ) ) {
+			$value = $this->__get( $name );
+			if(!empty( $value ) && NULL !== $value) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+	
 	/**
 	 * Overrides QueryRecord __get to implement custom object properties
 	 * @param string $name Name of property to return
@@ -1126,7 +1156,7 @@ class Post extends QueryRecord implements IsContent, FormStorage
 		// sorry, we just don't allow changing content types to types you don't have rights to
 		$type = 'post_' . Post::type_name( $form->content_type->value );
 		if ( $form->content_type->value != $post->content_type && ( $user->cannot( $type ) || ! $user->can_any( array( 'own_posts' => 'edit', 'post_any' => 'edit', $type => 'edit' ) ) ) ) {
-			Session::error( _t( 'Changing content types is not allowed' ) );
+			Session::error( _t( 'You don\'t have permission to change to that content type' ) );
 			// @todo This isn't ideal at all, since it loses all of the changes...
 			Utils::redirect( URL::get( 'display_publish', $post, false ) );
 			exit;
@@ -1137,7 +1167,7 @@ class Post extends QueryRecord implements IsContent, FormStorage
 			// check the user can create new posts of the set type.
 			$type = 'post_'  . Post::type_name( $form->content_type->value );
 			if ( ACL::user_cannot( $user, $type ) || ( ! ACL::user_can( $user, 'post_any', 'create' ) && ! ACL::user_can( $user, $type, 'create' ) ) ) {
-				Session::error( _t( 'Creating that post type is denied' ) );
+				Session::error( _t( 'You don\'t have permission to create posts of that type' ) );
 				Utils::redirect( URL::get( 'display_publish', $post, false) );
 				exit;
 			}
@@ -1150,7 +1180,7 @@ class Post extends QueryRecord implements IsContent, FormStorage
 			// check the user can create new posts of the set type.
 			$type = 'post_'  . Post::type_name( $form->content_type->value );
 			if ( ! ACL::access_check( $post->get_access(), 'edit' ) ) {
-				Session::error( _t( 'Editing that post type is denied' ) );
+				Session::error( _t( 'You don\'t have permission to edit posts of that type' ) );
 				Utils::redirect( URL::get( 'display_publish', $post, false) );
 				exit;
 			}
@@ -1280,6 +1310,7 @@ class Post extends QueryRecord implements IsContent, FormStorage
 		$form->add_class($context);
 		$form->add_class('commentform');
 		$form->set_wrap_each('<div>%s</div>');
+		$form->set_setting('use_session_errors', true);
 
 		// Enforce commenting rules
 		if(Options::get('comments_disabled')) {
@@ -1313,6 +1344,7 @@ class Post extends QueryRecord implements IsContent, FormStorage
 						array(
 							'id' => 'comment_name',
 							'tabindex' => 1,
+							'required' => 'required',
 						)
 					)->add_validator( 'validate_required', _t( 'The Name field value is required' ) )
 				)
@@ -1329,6 +1361,7 @@ class Post extends QueryRecord implements IsContent, FormStorage
 			if ( Options::get( 'comments_require_id' ) == 1 ) {
 				$cf_email->add_validator(  'validate_required', _t( 'The Email field value must be a valid email address' ) );
 				$cf_email->label( _t( 'Email <span class="required">*Required</span>' ) );
+				$cf_email->set_property("required", "required");
 			}
 			else {
 				$cf_email->label(_t('Email'));
@@ -1340,6 +1373,7 @@ class Post extends QueryRecord implements IsContent, FormStorage
 				FormControlLabel::wrap(_t('Website'), FormControlText::create('cf_url', 'null:null', array(
 					'id' => 'comment_url',
 					'tabindex' => 3,
+					'type' => 'url'
 				)))->add_validator( 'validate_url', _t( 'The Website field value must be a valid URL' ) )
 
 			);
@@ -1350,6 +1384,7 @@ class Post extends QueryRecord implements IsContent, FormStorage
 				FormControlTextArea::create('cf_content', 'null:null', array(
 					'id' => 'comment_content',
 					'tabindex' => 4,
+					'required' => 'required'
 				))->add_validator( 'validate_required', _t( 'The Comment field value is required' ) )
 				->label(_t('Content'))
 			);

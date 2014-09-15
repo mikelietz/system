@@ -21,8 +21,6 @@ class AdminCommentsHandler extends AdminHandler
 	{
 		$form = new FormUI( 'comment' );
 
-		$user = User::identify();
-
 		// Create the top description
 		$top = $form->append( FormControlWrapper::create( 'buttons_1', null, array( 'class' => array( 'container', 'buttons', 'comment', 'overview' ) ) ) );
 		$top->append( FormControlStatic::create( 'overview', null )->set_static( $this->theme->fetch( 'comment.overview' ) ) );
@@ -218,6 +216,28 @@ class AdminCommentsHandler extends AdminHandler
 		$this->theme->special_searches = array_merge( $statuses, $types );
 
 		$this->fetch_comments();
+		
+		// Create the form for the search and manage dropbutton. I bet we can save some code when combining this with the other manage pages.
+		$form = new FormUI('manage');
+		//$search = FormControlFacet::create('search');
+		//$form->append($search);
+		$aggregate = FormControlAggregate::create('selected_items')->set_selector('.comment_checkbox')->label('None Selected');
+		$form->append($aggregate);
+		$page_actions = FormControlDropbutton::create('page_actions');
+		$page_actions->append(
+			FormControlSubmit::create('delete')
+				->set_caption(_t('Delete Selected'))
+				->set_properties(array(
+					'onclick' => 'itemManage.update(\'delete\');return false;',
+					'title' => _t('Delete Selected'),
+				))
+		);
+		Plugins::act('comments_manage_actions', $page_actions);
+		$form->append($page_actions);
+
+        Stack::add('admin_header_javascript', 'manage-js' );
+		
+		$this->theme->form = $form;
 		$this->display( 'comments' );
 	}
 
@@ -441,18 +461,31 @@ class AdminCommentsHandler extends AdminHandler
 
 		/* Allow plugins to apply actions */
 		$actions = Plugins::filter( 'comments_actions', $baseactions, $this->theme->comments );
-
+		
 		foreach ( $this->theme->comments as $comment ) {
 			// filter the actions based on the user's permissions
 			$comment_access = $comment->get_access();
-			$menu = array();
+			$menu = FormControlDropbutton::create('comment' . $comment->id . '_commentactions');
 			foreach ( $actions as $name => $action ) {
-				if ( !isset( $action['access'] ) || ACL::access_check( $comment_access, $action['access'] ) ) {
-					$menu[$name] = $action;
+				if($name == Comment::status_name($comment->status)) {
+					// skip current status
+					continue;
+				}
+				if(!isset($action['label']) || empty($action['label'])) {	
+					// just grab something so the thing is labeled
+					$action['label'] = _t($name);
+				}
+				// replace constants/placeholders
+				$action['url'] = str_replace('__commentid__', $comment->id, $action['url']);
+				$entry = FormControlSubmit::create($name)
+					->set_caption($action['label'])
+					->set_url($action['url'])
+					->set_property('title', $action['title']);
+				if(!isset($action['access']) || ACL::access_check($comment_access, $action['access'])) {
+					$menu->append($entry);
 				}
 			}
-			// remove the current status from the dropmenu
-			unset( $menu[Comment::status_name( $comment->status )] );
+
 			$comment->menu = Plugins::filter( 'comment_actions', $menu, $comment );
 		}
 	}
@@ -516,33 +549,26 @@ class AdminCommentsHandler extends AdminHandler
 		$ar = new AjaxResponse();
 
 		// check WSSE authentication
-		$wsse = Utils::WSSE( $handler_vars['nonce'], $handler_vars['timestamp'] );
-		if ( $handler_vars['digest'] != $wsse['digest'] ) {
+		$wsse = Utils::WSSE( $_POST['nonce'], $_POST['timestamp'] );
+		if ( $_POST['digest'] != $wsse['digest'] ) {
 			$ar->message = _t( 'WSSE authentication failed.' );
 			$ar->out();
 			return;
 		}
 
-		$ids = array();
+		$ids = $_POST['selected'];
 
-		foreach ( $_POST as $id => $update ) {
-			// skip POST elements which are not comment ids
-			if ( preg_match( '/^p\d+$/', $id ) && $update ) {
-				$ids[] = (int) substr( $id, 1 );
-			}
-		}
-
-		if ( ( ! isset( $ids ) || empty( $ids ) ) && $handler_vars['action'] == 'delete' ) {
+		if ( ( ! isset( $ids ) || empty( $ids ) ) && $_POST['action'] == 'delete' ) {
 			$ar->message = _t( 'No comments selected.' );
 			$ar->out();
 			return;
 		}
 
 		$comments = Comments::get( array( 'id' => $ids, 'nolimit' => true ) );
-		Plugins::act( 'admin_moderate_comments', $handler_vars['action'], $comments, $this );
+		Plugins::act( 'admin_moderate_comments', $_POST['action'], $comments, $this );
 		$status_msg = _t( 'Unknown action "%s"', array( $handler_vars['action'] ) );
 
-		switch ( $handler_vars['action'] ) {
+		switch ( $_POST['action'] ) {
 			case 'delete_spam':
 				Comments::delete_by_status( 'spam' );
 				$status_msg = _t( 'Deleted all spam comments' );
@@ -575,7 +601,7 @@ class AdminCommentsHandler extends AdminHandler
 				break;
 			default:
 				// Specific plugin-supplied action
-				$status_msg = Plugins::filter( 'admin_comments_action', $status_msg, $handler_vars['action'], $comments );
+				$status_msg = Plugins::filter( 'admin_comments_action', $status_msg, $_POST['action'], $comments );
 				break;
 		}
 

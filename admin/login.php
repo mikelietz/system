@@ -3,7 +3,7 @@
 <!DOCTYPE HTML>
 <html>
 <head>
-	<title><?php printf( _t('Login to %s'), Options::get( 'title' ) ); ?></title>
+	<title><?php _e('Login to %s', array(Options::get( 'title' ))); ?></title>
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 
 	<script type="text/javascript">
@@ -37,7 +37,7 @@
 	<div id="page" class="container">
 		<div class="columns six offset-by-five">
 			<?php echo $form; ?>
-			<p class="poweredby"><?php Options::out('title'); ?> is powered by <a href="http://habariproject.org/" title="<?php _e('Go to the Habari site'); ?>">Habari <?php echo Version::get_habariversion(); ?></a>.</p>
+			<p class="poweredby"><?php _e('%1$s is powered by %2$s', array(Options::out('title'), '<a href="http://habariproject.org/" title="' . _t('Go to the Habari site') . '">Habari ' . Version::get_habariversion() . '</a>')); ?></p>
 		</div>
 	</div>
 <?php

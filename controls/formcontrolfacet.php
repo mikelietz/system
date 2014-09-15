@@ -55,17 +55,20 @@ class FormControlFacet extends FormControl
 			$out = <<<  CUSTOM_AUTOCOMPLETE_JS
 				<script type="text/javascript">
 controls.init(function(){
-	$('.facet_ui').each(function(){
+	$('.facet_ui:not(.initok)').each(function(){
 		var self = $(this);
+		self.addClass('initok');
 		var target = $('#' + self.data('target'));
 		var facet_config = target.data('facet-config');
 		self.data('visualsearch', VS.init({
 			container: self,
-			query: '',
-			showFacets: false,
+			query: target.val(),
+			showFacets: false, /* true makes them pop up automatically, but is kind of weird */
 			callbacks: {
 				search: function(query, searchCollection) {
-					console.log(query, searchCollection);
+					if(facet_config.onsearch != undefined) {
+						eval(facet_config.onsearch);
+					}
 				},
 				facetMatches: function(callback) {
 					if(facet_config.facetsURL != undefined) {
@@ -73,7 +76,7 @@ controls.init(function(){
 							facet_config.facetsURL,
 							{},
 							function(response) {
-								callback(response);
+								callback(response.data);
 							}
 						)
 					}
@@ -90,7 +93,7 @@ controls.init(function(){
 								q: searchTerm
 							},
 							function(response) {
-								callback(response);
+								callback(response.data);
 							}
 						)
 					}
@@ -101,8 +104,8 @@ controls.init(function(){
 					}
 				}
 			}
-		}));
-		self.closest('form').on('submit', function(){
+		}))
+		.closest('form').on('submit', function(){
 			target.val(self.data('visualsearch').searchBox.value());
 		});
 	});

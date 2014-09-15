@@ -41,6 +41,9 @@ class AdminGroupsHandler extends AdminHandler
 
 		$this->theme->add_group_form = FormUI::build('add_group', 'add_group');
 
+        Stack::add('admin_header_javascript', 'manage-js');
+        Stack::add('admin_header_javascript', 'groups-js');
+
 		$this->display( 'groups' );
 	}
 

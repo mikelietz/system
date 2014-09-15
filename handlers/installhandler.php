@@ -180,8 +180,8 @@ class InstallHandler extends ActionHandler
 
 		// activate plugins on POST
 		if ( count( $_POST ) > 0 ) {
-			$this->activate_theme();
 			$this->activate_plugins();
+			$this->activate_theme();
 		}
 
 
@@ -738,6 +738,7 @@ class InstallHandler extends ActionHandler
 		}
 		$group->grant( 'post_entry', 'read' );
 		$group->grant( 'post_page', 'read' );
+		$group->deny( 'post_unpublished' );
 
 		// Add the anonymous user to the anonymous group
 		$group->add( 0 );
@@ -1007,7 +1008,7 @@ class InstallHandler extends ActionHandler
 
 	public function activate_theme()
 	{
-		$theme_dir = $this->handler_vars['theme'];
+		$theme_dir = $this->handler_vars['theme_dir'];
 
 		// set the user_id in the session in case theme activation methods need it
 		if ( ! $u = User::get_by_name( $this->handler_vars['admin_username'] ) ) {
@@ -1865,6 +1866,17 @@ class InstallHandler extends ActionHandler
 				)
 			);
 		}
+	}
+	
+	private function upgrade_db_post_5116 ( ) {
+		
+		// make sure the update cronjob has not failed too many times during our server move
+		$cron = CronTab::get_cronjob( 'update_check' );
+		$cron->active = true;
+		$cron->failures = 0;
+		
+		$cron->update();
+		
 	}
 	
 	/**

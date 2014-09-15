@@ -16,33 +16,38 @@ class AdminUsersHandler extends AdminHandler
 	public function __construct()
 	{
 		$self = $this;
-		FormUI::register('add_user', function(FormUI $form, $name) use($self) {
-			$form->set_settings(array('use_session_errors' => true));
+		FormUI::register( 'add_user', function( FormUI $form, $name ) use( $self ) {
+			$form->set_settings( array( 'use_session_errors' => true ) );
 			$form->append(
-				FormControlText::create('username')
-					->add_validator('validate_username')
-					->add_validator('validate_required')
-					->label(_t('Username'))->add_class('incontent')->set_template('control.label.outsideleft')
+				FormControlText::create( 'username' )
+					->set_properties( array( 'class' => 'columns three', 'placeholder' => _t( 'Username' ) ) )
+					->add_validator( 'validate_username' )
+					->add_validator( 'validate_required' )
+					//->label(_t('Username'))->add_class('incontent')->set_template('control.label.outsideleft')
 			);
 			$form->append(
-				FormControlText::create('email')
-					->add_validator('validate_email')
-					->add_validator('validate_required')
-					->label(_t('E-Mail'))->add_class('incontent')->set_template('control.label.outsideleft')
+				FormControlText::create( 'email' )
+					->set_properties( array( 'class' => 'columns four', 'placeholder' => _t( 'E-Mail' ) ) )
+					->add_validator( 'validate_email' )
+					->add_validator( 'validate_required' )
+					//->label(_t('E-Mail'))->add_class('incontent')->set_template('control.label.outsideleft')
 			);
-			$password = FormControlPassword::create('password')
-				->add_validator('validate_required');
+			$password = FormControlPassword::create( 'password' )
+				->set_properties( array( 'class' => 'columns three', 'placeholder' => _t( 'Password' ) ) )
+				->add_validator( 'validate_required' );
 			$form->append(
-				$password->label(_t('Password'))->add_class('incontent')->set_template('control.label.outsideleft')
+				//$password->label(_t('Password'))->add_class('incontent')->set_template('control.label.outsideleft')
+				$password
 			);
 			$form->append(
-				FormControlPassword::create('password_again')
-					->add_validator('validate_same', $password)
-					->label(_t('Password Again'))->add_class('incontent')->set_template('control.label.outsideleft')
+				FormControlPassword::create( 'password_again' )
+					->set_properties( array( 'class' => 'columns three', 'placeholder' => _t( 'Password Again' ) ) )
+					->add_validator( 'validate_same', $password )
+					//->label(_t('Password Again'))->add_class('incontent')->set_template('control.label.outsideleft')
 			);
-			$form->append(FormControlSubmit::create('newuser')->set_caption('Add User'));
-			$form->add_validator(array($self, 'validate_add_user'));
-			$form->on_success(array($self, 'do_add_user'));
+			$form->append( FormControlSubmit::create( 'newuser' )->set_caption( 'Add User' ) );
+			$form->add_validator( array( $self, 'validate_add_user' ) );
+			$form->on_success( array( $self, 'do_add_user' ) );
 		});
 
 		FormUI::register('delete_users', function(FormUI $form, $name) use ($self) {
@@ -86,8 +91,8 @@ class AdminUsersHandler extends AdminHandler
 			// Generate sections
 			foreach ( $field_sections as $key => $name ) {
 				$fieldset = $form->append( 'wrapper', $key, $name );
-				$fieldset->add_class('container settings');
-				$fieldset->append( FormControlStatic::create($key)->set_static('<h2>' . htmlentities( $name, ENT_COMPAT, 'UTF-8' ) . '</h2>') );
+				$fieldset->add_class('container main settings');
+				$fieldset->append( FormControlStatic::create($key)->set_static('<h2 class="lead">' . htmlentities( $name, ENT_COMPAT, 'UTF-8' ) . '</h2>') );
 			}
 
 			// User Info
@@ -142,6 +147,9 @@ class AdminUsersHandler extends AdminHandler
 			}
 			$locale_time_format->set_helptext(_t( 'See <a href="%s">php.net/date</a> for details. Current format: %s', array( 'http://php.net/date', $current ) ));
 
+			$locales = array_merge( array( '' => _t( 'System default' ) . ' (' . Options::get( 'locale', 'en-us' ) . ')' ), array_combine( Locale::list_all(), Locale::list_all() ) );
+			$locale_lang = FormcontrolSelect::create( 'locale_lang', null, array( 'multiple' => false ) )->set_options( $locales )->set_value( $edit_user->info->locale_lang );
+			$form->regional_settings->append( FormControlLabel::wrap( _t(' Language' ), $locale_lang ) );
 
 			$spam_count = FormControlCheckbox::create('dashboard_hide_spam_count')
 				->set_helptext(_t( 'Hide the number of SPAM comments on your dashboard.' ))->set_value($edit_user->info->dashboard_hide_spam_count);
@@ -150,8 +158,8 @@ class AdminUsersHandler extends AdminHandler
 			// Groups
 			if(User::identify()->can('manage_groups')) {
 				$fieldset = $form->append( FormControlWrapper::create('groups'));
-				$fieldset->add_class('container settings');
-				$fieldset->append( FormControlStatic::create('groups_title')->set_static('<h2>' . htmlentities( _t('Groups'), ENT_COMPAT, 'UTF-8' ) . '</h2>' ));
+				$fieldset->add_class('container main settings');
+				$fieldset->append( FormControlStatic::create('groups_title')->set_static('<h2 class="lead">' . htmlentities( _t('Groups'), ENT_COMPAT, 'UTF-8' ) . '</h2>' ));
 				$fieldset->append( FormControlCheckboxes::create('user_group_membership')->set_options(Utils::array_map_field(UserGroups::get_all(), 'name', 'id'))->set_value($edit_user->groups) );
 			}
 
@@ -287,6 +295,26 @@ class AdminUsersHandler extends AdminHandler
 	public function edit_user_delete(FormUI $form)
 	{
 		$edit_user = User::get_by_id( $form->edit_user->value );
+		$current_user = User::identify();
+		$permission = false;
+
+		// Check if the user is editing their own profile
+		if ($edit_user->id == $current_user->id) {
+			if ( $edit_user->can( 'manage_self' ) || $edit_user->can( 'manage_users' ) ) {
+				$permission = true;
+			}
+		}
+		else {
+			if ( $current_user->can( 'manage_users' ) ) {
+				$permission = true;
+			}
+		}
+
+		if ( !$permission ) {
+			Session::error( _t( 'Access to that page has been denied by the administrator.' ) );
+			$this->get_blank();
+			return;
+		}
 
 		// We're going to delete the user before we need it, so store the username
 		$username = $edit_user->username;
@@ -368,7 +396,7 @@ class AdminUsersHandler extends AdminHandler
 		}
 
 		// Set various info fields
-		$info_fields = array( 'displayname', 'imageurl', 'locale_tz', 'locale_date_format', 'locale_time_format', 'dashboard_hide_spam_count' );
+		$info_fields = array( 'displayname', 'imageurl', 'locale_tz', 'locale_lang', 'locale_date_format', 'locale_time_format', 'dashboard_hide_spam_count' );
 
 		// let plugins easily specify other user info fields to pick
 		$info_fields = Plugins::filter( 'adminhandler_post_user_fields', $info_fields );

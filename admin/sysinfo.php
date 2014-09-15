@@ -4,7 +4,7 @@ $admin_title = _t( 'System Information' );
 
 include_once( 'header.php' ); ?>
 
-<div class="container">
+<div class="container main">
 	<h2 class="lead"><?php _e( "System Information" ); ?></h2>
 	<?php $plaintext_output = strtoupper( _t( "System Information" ) ) . "\n"; ?>
 
@@ -14,14 +14,14 @@ include_once( 'header.php' ); ?>
 			<td><?php echo $key;
 				$plaintext_output .= $key; ?></td>
 			<td><?php echo $value;
-				$plaintext_output .= ": $value\n"; ?></td>
+				$plaintext_output .= ': ' . str_replace('<br>', "\n\t", $value) . "\n"; ?></td>
 		</tr>
 	<?php endforeach; ?>
 	</table>
 
 </div>
 
-<div class="container">
+<div class="container main">
 	<h2 class="lead"><?php _e( "Site Information" ); ?></h2>
 	<?php $plaintext_output .= "\n" . strtoupper( _t( "Site Information" ) ) . "\n"; ?>
 
@@ -38,21 +38,21 @@ include_once( 'header.php' ); ?>
 
 </div>
 
-<div class="container">
+<div class="container main">
 	<h2 class="lead"><?php _e( "Plugin Information" ); ?></h2>
 	<?php $plaintext_output .= "\n" . strtoupper( _t( "Plugin Information" ) ); ?>
 	<table>
 	<?php foreach ( $plugins as $section => $sec_plugins ): ?>
 
-	<tr><td colspan="2"><?php echo $section;
-		$plaintext_output .= "\n/$section/plugins:\n"; ?></td></tr>
+	<tr><td colspan="2"><h3 class="sub"><?php echo $section;
+		$plaintext_output .= "\n/$section/plugins:\n"; ?></h3></td></tr>
 
-	<?php foreach ( $sec_plugins as $name => $pluginfile ) : ?>
+	<?php foreach ( $sec_plugins as $name => $plugindata ) : ?>
 		<tr>
-			<td><?php echo $name;
-				$plaintext_output .= $name; ?></td>
-			<td><?php echo $pluginfile;
-				$plaintext_output .= ": $pluginfile\n"; ?></td>
+			<td><?php echo $name . ' ' . $plugindata['version'] ;
+				$plaintext_output .= $name . ' ' . $plugindata['version']; ?></td>
+			<td><?php echo str_replace('/', '<wbr/>/', $plugindata['file']);
+				$plaintext_output .= ": " . $plugindata['file'] . "\n"; ?></td>
 		</tr>
 
 	<?php endforeach; ?>
@@ -64,7 +64,7 @@ include_once( 'header.php' ); ?>
 	</table>
 </div>
 
-<div class="container">
+<div class="container main">
 	<h2 class="lead"><?php _e( "User Classes" ); ?></h2>
 	<?php $plaintext_output .= "\n" . strtoupper( _t( "User Classes" ) ) . "\n"; ?>
 
@@ -83,7 +83,7 @@ include_once( 'header.php' ); ?>
 	</table>
 </div>
 
-<div class="container">
+<div class="container main">
 	<h2 class="lead"><?php _e( "All Results" ); ?></h2>
 	<textarea class="full-width" rows = "<?php echo substr_count( $plaintext_output, "\n" ); ?>"><?php echo $plaintext_output; ?></textarea>
 </div>

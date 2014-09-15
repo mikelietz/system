@@ -32,33 +32,38 @@ class Theme extends Pluggable
 	 * also, optionally, by the Theme )
 	 */
 	public $valid_filters = array(
-		'preset',
-		'content_type',
-		'not:content_type',
-		'slug',
-		'not:slug',
-		'user_id',
-		'vocabulary',
-		'status',
-		'page',
-		'tag',
-		'not:tag',
-		'month',
-		'year',
-		'day',
-		'criteria',
-		'limit',
-		'nolimit',
-		'offset',
-		'fetch_fn',
-		'id',
-		'info',
-		'has:info',
-		'all:info',
-		'any:info',
-		'not:info',
-		'not:all:info',
-		'not:any:info',
+		'handler_vars' => array(
+			'preset',
+			'content_type',
+			'not:content_type',
+			'slug',
+			'not:slug',
+			'user_id',
+			'vocabulary',
+			'status',
+			'page',
+			'tag',
+			'not:tag',
+			'month',
+			'year',
+			'day',
+			'limit',
+			'nolimit',
+			'offset',
+			'fetch_fn',
+			'id',
+			'info',
+			'has:info',
+			'all:info',
+			'any:info',
+			'not:info',
+			'not:all:info',
+			'not:any:info',
+		),
+		'GET' => array(
+			'criteria',
+		),
+		'POST' => array(),
 	);
 
 	/**
@@ -205,8 +210,18 @@ class Theme extends Pluggable
 			}
 		}
 
+		/**
+		 * Since handler_vars no longer contains $_GET and $_POST, we have broken out our valid filters into
+		 * an array based upon where we should expect them to be. We then only merge those specific pieces together.
+		 *
+		 * These are ordered so that handler vars gets overwritten by POST, which gets overwritten by GET, should the
+		 * same key exist multiple places. This seemed logical to me at the time, but needs further thought.
+		 */
 		$where_filters = array();
-		$where_filters = Controller::get_handler_vars()->filter_keys( $this->valid_filters );
+		$where_filters_hv = Controller::get_handler_vars()->filter_keys( $this->valid_filters['handler_vars'] );
+		$where_filters_post = $_POST->filter_keys( $this->valid_filters['POST'] );
+		$where_filters_get = $_GET->filter_keys( $this->valid_filters['GET'] );
+		$where_filters = $where_filters_hv->merge( $where_filters_post, $where_filters_get );
 		$where_filters['vocabulary'] = array();
 
 		if ( array_key_exists( 'tag', $where_filters ) ) {
@@ -522,7 +537,7 @@ class Theme extends Pluggable
 		
 		$paramarray['user_filters'] = array_merge( $default_filters, $user_filters );
 
-		$this->assign( 'criteria', Controller::get_handler_vars()->escape( 'criteria' ) );
+		$this->assign( 'criteria', $_GET['criteria'] );
 		return $this->act_display( $paramarray );
 	}
 
@@ -615,6 +630,31 @@ class Theme extends Pluggable
 	 */
 	public function theme_header( $theme )
 	{
+		// Add prev and next links
+		if( isset($theme->posts) && $theme->posts instanceof Posts ) {
+			$settings = array();
+			$settings['page'] = (int) ( $theme->page + 1 );
+			$items_per_page = isset( $theme->posts->get_param_cache['limit'] ) ?
+				$theme->posts->get_param_cache['limit'] :
+				Options::get( 'pagination' );
+			$total = Utils::archive_pages( $theme->posts->count_all(), $items_per_page );
+			if( $settings['page'] <= $total ) {
+				Stack::add( 'template_atom', array( 'next', 'text/html', _t('Page %s', array( $settings['page']) ), URL::get( null, $settings, false ) ) );
+			}
+
+			$settings['page'] = (int) ( $theme->page - 1 );
+			if ( $settings['page'] >= 1 ) {
+				Stack::add( 'template_atom', array( 'prev', 'text/html', _t('Page %s', array( $settings['page']) ), URL::get( null, $settings, false ) ) );
+			}
+		}
+		elseif( $theme->posts instanceof Post ) {
+			if( $next = $theme->posts->ascend() ) {
+				Stack::add( 'template_atom', array( 'next', 'text/html', $next->title, $next->permalink ) );
+			}
+			if( $previous = $theme->posts->descend() ) {
+				Stack::add( 'template_atom', array( 'prev', 'text/html', $previous->title, $previous->permalink ) );
+			}
+		}
 		
 		// create a stack of the atom tags before the first action so they can be unset if desired
 		Stack::add( 'template_atom', array( 'alternate', 'application/atom+xml', 'Atom 1.0', implode( '', $this->feed_alternate_return() ) ), 'atom' );
@@ -770,6 +810,9 @@ class Theme extends Pluggable
 			return '';
 		}
 		$current = $theme->page;
+		if( isset( $theme->posts->get_param_cache['nolimit'] ) ) {
+			return;
+		}
 		$items_per_page = isset( $theme->posts->get_param_cache['limit'] ) ?
 			$theme->posts->get_param_cache['limit'] :
 			Options::get( 'pagination' );
@@ -828,6 +871,9 @@ class Theme extends Pluggable
 
 			$prevpage = $page;
 		}
+		
+		// Run the result through filters so plugins may overwrite it
+		$out = Plugins::filter( 'page_selector', $out, $pages, $rr_name );
 
 		return $out;
 	}
@@ -866,6 +912,9 @@ class Theme extends Pluggable
 
 		// If there's no next page, skip and return null
 		$settings['page'] = (int) ( $theme->page + 1 );
+		if( isset( $theme->posts->get_param_cache['nolimit'] ) ) {
+			return null;
+		}
 		$items_per_page = isset( $theme->posts->get_param_cache['limit'] ) ?
 			$theme->posts->get_param_cache['limit'] :
 			Options::get( 'pagination' );

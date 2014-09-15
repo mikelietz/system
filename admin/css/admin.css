@@ -346,10 +346,12 @@ body, html {
 
 #page {
 	min-height: 100%;
-	z-index: 5;
 	position:relative;
-	padding-bottom: 75px;
-	margin-top: 65px;
+}
+#page:after {
+	content: ' ';
+	height: 70px;
+	display: block;
 }
 
 #spinner {
@@ -357,10 +359,6 @@ body, html {
 	top: 45px;
 	right: 10px;
 	z-index: 50;
-}
-
-.page-dashboard #page {
-	padding-bottom: 0px;
 }
 
 #menubar {
@@ -373,8 +371,9 @@ body, html {
 	border-bottom: 1px solid #e3e1dc;
 }
 	#menubar a {color: #fff; text-decoration: none;}
-	#menu { float:left; background: #555; line-height: 15px; width: 200px; margin-left: 5px;}
+	#menu { float:left; background: #555; line-height: 15px; min-width: 200px; margin-left: 5px;}
 		#menulist { display:none; position:absolute;background-color: #555; padding-top:0px;top:40px;width:220px; border-top: 1px solid #444; font-size: 13px;}
+		#menulist.hovering { display: block; }
 		#menulist ul { margin-bottom:5px; }
 		#menulist li { margin: 0px; }
 		#menulist li.over-spacer { padding-bottom: 5px; }
@@ -382,10 +381,11 @@ body, html {
 		#menulist li.last-child {padding-bottom: 0px;margin-bottom: 0px;}
 		#menulist li a { display:block; padding: 5px 10px;}
 		#menulist li:hover { background-color: #666; }
-		h1#menubutton {line-height: 15px; padding: 0px 15px; }
+		h1#menubutton {line-height: 15px; padding: 0px 10px; }
 			#menubar:hover { cursor: pointer; }
 			#menubutton a { font-size: 13px; color: #fff; }
-			#menubutton .hotkey { float:right; padding: 12px 0px; }
+			#menubutton .menutext {float: left; padding: 12px 0px;}
+			#menubutton .hotkey { float:right; padding: 12px 0px; margin-left: 10px; }
 			#menubutton .arrow {float:right;font-size: 15px; padding: 13px 0px;margin-left: 15px;}
 			#menulist .hotkey { float:right; margin-right: 30px; }
 			#menubutton .hotkey.enabled { color: #fff; font-weight: bold}
@@ -404,6 +404,9 @@ body, html {
 	ul.submenu {
 		display:none;
 	}
+	.hovering > ul.submenu {
+		display: block;
+	}
 
 #site {
 	float:right;
@@ -414,6 +417,14 @@ body, html {
 textarea.full-width,
 input.full-width {
 	width: 99%;
+}
+
+#page > .container, #page > form {
+	padding-top: 65px;
+}
+
+#page .container + .container {
+	padding-top: 0px;
 }
 
 #welcome {
@@ -662,6 +673,32 @@ ol {}
 		box-shadow: none;
 	}
 
+/* Faceted Search and Select2 style Overrides */
+#page .VS-search .VS-search-box {
+	cursor: text;
+	position: relative;
+	background: transparent;
+	border: 1px solid #ccc;
+	border-radius: 2px;
+	-webkit-border-radius: 0px;
+	-moz-border-radius: 0px;
+	background-color: #fafafa;
+	-webkit-box-shadow: none;
+	-moz-box-shadow: none;
+	box-shadow: none;
+	min-height: 28px;
+	height: auto;
+}
+
+#page .VS-search .VS-search-box.VS-focus,
+#page .select2-container-multi.select2-container-active .select2-choices {
+	border: 1px solid #aaa;
+	color: #444;
+	-moz-box-shadow: 0 0 3px rgba(0,0,0,.2);
+	-webkit-box-shadow: 0 0 3px rgba(0,0,0,.2);
+	box-shadow: 0 0 3px rgba(0,0,0,.2);
+}
+
 /* Common */
 	h2.lead {
 		font-family: "Montserrat";
@@ -680,11 +717,24 @@ ol {}
 		background: #B4AD9C;
 	}
 	
+	h3.sub {
+		font-family: "Montserrat";
+		font-weight: normal;
+		font-size: 15px;
+		margin-bottom: 0px;
+		padding-left: 15px;
+		color: #fff;
+		background: #B4AD9C;
+		line-height: 28px;
+		
+	}
+	
 .main {
 	margin-top: 10px;
 	background: rgb(224, 221, 214);
 	color: #333;
-	padding: 10px 20px 0px;
+	padding: 10px 20px;
+	box-sizing: border-box;
 }
 
 .more {
@@ -793,20 +843,9 @@ input[type=text] {
 	
 	#create_content .viewpost {
 		float:right;
-		color: #fff;
-		padding: 10px;
-		background: #333;
-		line-height: 11px;
-		font-size: 12px;
-		font-weight: normal;
+		padding: 10px 0px 0px 0px;
 		margin: 0px;
-		border-radius: 3px;
-		border: 0px;
-		text-shadow: none;
 	}
-		#create_content .viewpost:hover {
-			background:#666;
-		}
 	#create_content label {}
 	
 	#create_content textarea {
@@ -902,14 +941,155 @@ input[type=text] {
 				padding-left: 5px;
 			}
 	
-#log_data {  /* this will do for now */
-	table-layout: fixed;
-}
-	#log_data .checkbox {
-		width: 30px;
+	#create_content	#mediatabs ~ .splitter {
+		position: relative;
+		top: -23px;
 	}
+	#create_content	#mediatabs ~ .splitter .splitterinside {
+		background: #333;
+	}
+	#create_content .media_controls {
+		height: 25px;
+		width: 100%;
+		padding: 5px;
+		background: #333;
+	}
+	#create_content .media_controls ul {
+		margin: 0;
+	}
+	#create_content .media_controls ul li {
+		float: left;
+		margin: 0;
+		margin-right: 10px;
+		padding: 5px;
+	}
+	#create_content .media_controls ul li a {
+		color: #fff;
+	}
+	
+	#create_content .media_browser,  #create_content .media_panel {
+		clear: both;
+		color: #fff;
+	}
+	#create_content .media_row {
+		background: #444;
+	}
+	#create_content .media_browser .media_dirlevel {
+		float: left;
+		height: 180px;
+		margin: 0;
+		padding: 5px;
+		padding-right: 10px;
+		border-right: 1px solid #666;
+		overflow-x: hidden;
+		overflow-y: auto;
+		background: #555;
+	}
+	#create_content .media_browser .media_dirlevel ul {
+		margin: 0;
+		padding: 0;
+	}
+	#create_content .media_browser .media_dirlevel ul li {
+		cursor: pointer;
+	}
+	
+	#create_content .mediaphotos {
+		display: inline-block;
+		height: 180px;
+		padding: 5px;
+		background: #444;
+	}
+	#create_content .mediaphotos .media {
+		max-width: 180px;
+	}
+
+#post_data td {
+	white-space: nowrap;
+	overflow: hidden;
+	margin-right: 3px;
+}
+
+/* Manage page */
+.aggregate_ui, .aggregate_control + label {
+	float: left;
+}
+
+#page > .container.manage {
+	padding-top: 10px;
+}
+.manage_item {
+	padding: 10px 3px 0px 0px;
+}
+.manage_item .head {
+	line-height: 31px;
+	clear: both;
+}
+.comment-info {
+	width: 25%;
+	padding: 0;
+	margin: 0;
+	float: left;
+}
+.head .meta {
+	float: right;
+	display: inline;
+}
+.head .checkbox {
+	width: 20px;
+}
+.head .checkbox, .head ul .title, .head .state, .head .author, .head .date, .head .time, .head .comment-status, .head .comment-type {
+	padding-left: 5px;
+	float: left;
+	line-height: 31px;
+}
+.manage_item .actions {
+	display: inline-block;
+	min-width: 110px;
+	text-align: right;
+	float: right;
+	padding-left: 15px;
+}
+.manage_item .head + div {
+	clear: both;
+}
+.manage_item .excerpt {
+	padding: 10px;
+}
+
+.comment ul.meta {
+	float: left;
+	padding: 0px 0px 0px 25px;
+	margin: 0;
+	width: 25%;
+}
+.comment.unapproved ul.meta {
+	border-left: 3px solid #FCD915;
+	padding: 0px 0px 0px 8px;
+	margin: 0px 0px 0px 14px;
+}
+.comment.spam ul.meta {
+	border-left: 3px solid #F8595F;
+	padding: 0px 0px 0px 8px;
+	margin: 0px 0px 0px 14px;
+}
+ul.meta li {
+	padding: 0px 0px 0px 5px;
+	margin: 0;
+}
+
+#log_data {  /* this will do for now */
+	/*table-layout: fixed;*/
+}
+
 	#log_data td {
 		white-space: nowrap;
+		/* someone who knows what they're doing, can you fix this? */
+		border-top: 1px solid grey;
+		padding: 1px 5px 1px 5px;
+	}
+
+	#post_data .content td {
+		white-space: normal;
 	}
 
 .page-sysinfo table {
@@ -965,7 +1145,7 @@ input[type=text] {
 #humanMsgLog {display:none;}
 
 #footer {
-	position:absolute;
+	position:fixed;
 	bottom:0px;
 	left: 0px;
 	background: #333;
@@ -1169,4 +1349,25 @@ body.login .humanMsg {
 	.handle { display:none; }
 	.modulecore h2, .modulecore h2 a { font-size: 18px; }
 	#create_content input[type="submit"] { margin-bottom: 10px; }
+}
+
+
+/* Annoying jQueryUI no-flatness themeroller garbage */
+.ui-dialog .ui-widget-header {
+	border: none;
+	background: #B4AD9C;
+	color: white;
+}
+.ui-dialog.ui-widget-content {
+	border: none;
+	background: white;
+	box-shadow: rgba(0, 0, 0, 0.298039) 0px 3px 5px;
+	padding: 0px;
+}
+.ui-dialog.ui-corner-all,
+.ui-dialog .ui-corner-all {
+	border-radius: 0px;
+}
+.ui-dialog .ui-dialog-content {
+	padding: 0 10px;
 }

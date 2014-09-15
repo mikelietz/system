@@ -98,17 +98,18 @@ class AdminPostsHandler extends AdminHandler
 			'search' => '',
 		);
 		foreach ( $locals as $varname => $default ) {
-			$$varname = isset( $this->handler_vars[$varname] ) ? $this->handler_vars[$varname] : ( isset( $params[$varname] ) ? $params[$varname] : $default );
+			$$varname = isset( $params[$varname] ) ? $params[$varname] : $default;
 		}
 
 		// numbers submitted by HTTP forms are seen as strings
 		// but we want the integer value for use in Posts::get,
 		// so cast these two values to (int)
-		if ( isset( $this->handler_vars['type'] ) ) {
-			$type = (int) $this->handler_vars['type'];
+		// We want the integer value of these
+		if (empty($type) && isset($_GET['type'])) {
+			$type = Post::type($_GET['type']);
 		}
-		if ( isset( $this->handler_vars['status'] ) ) {
-			$status = (int) $this->handler_vars['status'];
+		if (empty($status) && isset($_GET['status'])) {
+			$status = Post::status($_GET['status']);
 		}
 
 		// if we're updating posts, let's do so:
@@ -251,14 +252,47 @@ class AdminPostsHandler extends AdminHandler
 		$types = array_combine( $terms, $labels );
 
 		$special_searches = array_merge( $statuses, $types );
-		// Add a filter to get the only the user's posts
+		// Add a filter to get only the user's posts
 		$special_searches["author:" . User::identify()->username] = _t( 'My Posts' );
+		
+		// Create search controls and global buttons for the manage page
+		$search_value = '';
+		if(isset($_GET['type'])) {
+			$search_value .= 'type: ' . Post::type_name($_GET['type']);
+		}
+		$search = FormControlFacet::create('search');
+		$search->set_value($search_value)
+			->set_property('data-facet-config', array(
+				'onsearch' => '$(".posts").manager("update", self.data("visualsearch").searchQuery.facets());',
+				'facetsURL' => URL::get('admin_ajax_facets', array('context' => 'facets', 'component' => 'facets')),
+				'valuesURL' => URL::get('admin_ajax_facets', array('context' => 'facets', 'component' => 'values')),
+			));
+
+		$aggregate = FormControlAggregate::create('selected_items')->set_selector('.post_item')->label('None Selected');
+
+		$page_actions = FormControlDropbutton::create('page_actions');
+		$page_actions->append(
+			FormControlSubmit::create('delete')
+				->set_caption(_t('Delete Selected'))
+				->set_properties(array(
+					'onclick' => 'itemManage.update(\'delete\');return false;',
+					'title' => _t('Delete Selected'),
+				))
+		);
+		Plugins::act('posts_manage_actions', $page_actions);
+		
+		$form = new FormUI('manage');
+		$form->append($search);
+		$form->append($aggregate);
+		$form->append($page_actions);
+		$this->theme->form = $form;
 
 		$this->theme->admin_page = _t( 'Manage Posts' );
 		$this->theme->admin_title = _t( 'Manage Posts' );
 		$this->theme->special_searches = Plugins::filter( 'special_searches', $special_searches );
 
 		Stack::add('admin_header_javascript', 'visualsearch' );
+		Stack::add('admin_header_javascript', 'manage-js' );
 		Stack::add('admin_stylesheet', 'visualsearch-css');
 		Stack::add('admin_stylesheet', 'visualsearch-datauri-css');
 
@@ -272,7 +306,7 @@ class AdminPostsHandler extends AdminHandler
 	{
 		Utils::check_request_method( array( 'POST' ) );
 
-		$path = $handler_vars['path'];
+		$path = $_POST['path'];
 		$rpath = $path;
 		$silo = Media::get_silo( $rpath, true );  // get_silo sets $rpath by reference to the path inside the silo
 		$assets = Media::dir( $path );
@@ -316,8 +350,8 @@ class AdminPostsHandler extends AdminHandler
 	{
 		Utils::check_request_method( array( 'POST' ) );
 
-		$path = $handler_vars['path'];
-		$panelname = $handler_vars['panel'];
+		$path = $_POST['path'];
+		$panelname = $_POST['panel'];
 		$rpath = $path;
 		$silo = Media::get_silo( $rpath, true );  // get_silo sets $rpath by reference to the path inside the silo
 
@@ -352,8 +386,8 @@ class AdminPostsHandler extends AdminHandler
 	{
 		Utils::check_request_method( array( 'POST' ) );
 
-		$path = $handler_vars['path'];
-		$panelname = $handler_vars['panel'];
+		$path = $_POST['path'];
+		$panelname = $_POST['panel'];
 		$rpath = $path;
 		$silo = Media::get_silo( $rpath, true );  // get_silo sets $rpath by reference to the path inside the silo
 
@@ -387,13 +421,26 @@ class AdminPostsHandler extends AdminHandler
 	 */
 	public function ajax_posts()
 	{
-		Utils::check_request_method( array( 'GET', 'HEAD' ) );
+		Utils::check_request_method( array( 'POST', 'HEAD' ) );
 
 		$this->create_theme();
 
-		$params = $_GET;
+		$params = $_POST['query'];
 
-		$this->fetch_posts( $params );
+		$fetch_params = array();
+		foreach($params as $param) {
+			$key = key($param);
+			$value = current($param);
+			if(isset($fetch_params[$key])) {
+				$fetch_params[$key] = Utils::single_array($fetch_params[$key]);
+				$fetch_params[$key][] = $value;
+			}
+			else {
+				$fetch_params[$key] = $value;
+			}
+		}
+
+		$this->fetch_posts( $fetch_params );
 		$items = $this->theme->fetch( 'posts_items' );
 		$timeline = $this->theme->fetch( 'timeline_items' );
 
@@ -406,6 +453,7 @@ class AdminPostsHandler extends AdminHandler
 		}
 
 		$ar = new AjaxResponse();
+		$ar->html('.posts', $items);
 		$ar->data = array(
 			'items' => $items,
 			'item_ids' => $item_ids,
@@ -423,20 +471,15 @@ class AdminPostsHandler extends AdminHandler
 		Utils::check_request_method( array( 'POST' ) );
 		$response = new AjaxResponse();
 
-		$wsse = Utils::WSSE( $handler_vars['nonce'], $handler_vars['timestamp'] );
-		if ( $handler_vars['digest'] != $wsse['digest'] ) {
+		$wsse = Utils::WSSE( $_POST['nonce'], $_POST['timestamp'] );
+		if ( $_POST['digest'] != $wsse['digest'] ) {
 			$response->message = _t( 'WSSE authentication failed.' );
 			$response->out();
 			return;
 		}
-
-		$ids = array();
-		foreach ( $_POST as $id => $delete ) {
-			// skip POST elements which are not post ids
-			if ( preg_match( '/^p\d+$/', $id ) && $delete ) {
-				$ids[] = (int) substr( $id, 1 );
-			}
-		}
+		
+		$ids = $_POST['selected'];
+		
 		if ( count( $ids ) == 0 ) {
 			$posts = new Posts();
 		}
@@ -444,9 +487,9 @@ class AdminPostsHandler extends AdminHandler
 			$posts = Posts::get( array( 'id' => $ids, 'nolimit' => true ) );
 		}
 
-		Plugins::act( 'admin_update_posts', $handler_vars['action'], $posts, $this );
-		$status_msg = _t( 'Unknown action "%s"', array( $handler_vars['action'] ) );
-		switch ( $handler_vars['action'] ) {
+		Plugins::act( 'admin_update_posts', $_POST['action'], $posts, $this );
+		$status_msg = _t( 'Unknown action "%s"', array( $_POST['action'] ) );
+		switch ( $_POST['action'] ) {
 			case 'delete':
 				$deleted = 0;
 				foreach ( $posts as $post ) {
@@ -464,11 +507,85 @@ class AdminPostsHandler extends AdminHandler
 				break;
 			default:
 				// Specific plugin-supplied action
-				Plugins::act( 'admin_posts_action', $response, $handler_vars['action'], $posts );
+				Plugins::act( 'admin_posts_action', $response, $_POST['action'], $posts );
 				break;
 		}
 
 		$response->out();
 		exit;
+	}
+
+	/**
+	 * Plugin hook filter for the facet list
+	 * @param array $facets An array of facets for manage posts search
+	 * @return array The array of facets
+	 */
+	public static function filter_facets($facets) {
+		$result = array_merge($facets, array(
+			'type',
+			'status',
+			'author',
+			'after',
+			'before',
+			'tag',
+		));
+		return $result;
+	}
+
+	/**
+	 * Plugin hook filter for the values of a faceted search
+	 * @param array $values The incoming array of values for this facet
+	 * @param string $facet The selected facet
+	 * @param string $q A string filter for facet values
+	 * @return array The returned list of possible values
+	 */
+	public static function filter_facetvalues($values, $facet, $q) {
+		switch($facet) {
+			case 'type':
+				$values = array_keys(Post::list_active_post_types());
+				break;
+			case 'status':
+				$values = array_keys(Post::list_post_statuses());
+				break;
+			case 'tag':
+				$tags = Tags::search($q);
+				$values = array();
+				foreach($tags as $tag) {
+					$values[] = $tag->term;
+				}
+				break;
+			case 'author':
+				$values = array();
+				$users = Users::get(array('criteria' => $q));
+				foreach($users as $user) {
+					$values[] = $user->username;
+				}
+				break;
+			case 'before':
+			case 'after':
+				$values = array($q);
+				break;
+		}
+		return $values;
+	}
+
+	/**
+	 * Handle ajax requests for facets on the manage posts page
+	 * @param $handler_vars
+	 */
+	public function ajax_facets($handler_vars) {
+
+		switch($handler_vars['component']) {
+			case 'facets':
+				$result = Plugins::filter('facets', array());
+				break;
+			case 'values':
+				$result = Plugins::filter('facetvalues', array(), $_POST['facet'], $_POST['q']);
+				break;
+		}
+
+		$ar = new AjaxResponse();
+		$ar->data = $result;
+		$ar->out();
 	}
 }

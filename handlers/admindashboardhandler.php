@@ -54,6 +54,8 @@ class AdminDashboardHandler extends AdminHandler
 
 		$this->get_additem_form();
 
+        Stack::add('admin_header_javascript', 'dashboard-js' );
+
 		$this->display( 'dashboard' );
 	}
 
@@ -90,7 +92,7 @@ class AdminDashboardHandler extends AdminHandler
 		$user_id = User::identify()->id;
 		$dashboard_area = 'dashboard_' . $user_id;
 
-		switch ( $handler_vars['action'] ) {
+		switch ( $_POST['action'] ) {
 			case 'updateModules':
 				$modules = $_POST['moduleOrder'];
 				$order = 0;
@@ -101,7 +103,7 @@ class AdminDashboardHandler extends AdminHandler
 				$ar = new AjaxResponse( 200, _t( 'Modules updated.' ) );
 				break;
 			case 'addModule':
-				$type = $handler_vars['module_name'];
+				$type = $_POST['module_name'];
 				$title = $available_modules[$type];
 				$block = new Block( array( 'title' => $title, 'type' => $type ) );
 				$block->insert();
@@ -113,14 +115,14 @@ class AdminDashboardHandler extends AdminHandler
 				$ar->html( 'modules', $this->theme->fetch( 'dashboard_modules' ) );
 				break;
 			case 'removeModule':
-				$block_id = $handler_vars['moduleid'];
+				$block_id = $_POST['moduleid'];
 				DB::delete('{blocks}', array('id' => $block_id));
 				DB::delete('{blocks_areas}', array('block_id' => $block_id));
 				$ar = new AjaxResponse( 200, _t( 'Removed module.' ) );
 				$ar->html( 'modules', $this->theme->fetch( 'dashboard_modules' ) );
 				break;
 			case 'configModule':
-				$block_id = $handler_vars['moduleid'];
+				$block_id = $_POST['moduleid'];
 
 				$block = DB::get_row('SELECT * FROM {blocks} b WHERE b.id = :id', array('id' => $block_id), 'Block');
 
